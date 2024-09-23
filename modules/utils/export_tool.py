@@ -54,8 +54,11 @@ class Exporter:
                 word_intervals,
         ) in self.predictions:
             label = ""
-            for start, end in ph_intervals:
-                start_time = int(float(start) * 10000000)
+            for i, (start, end) in enumerate(ph_intervals):
+                if i == 0:
+                    start_time = 0  # 第一个元素的 start_time 设置为 0
+                else:
+                    start_time = int(float(start) * 10000000)
                 end_time = int(float(end) * 10000000)
                 label += f"{start_time} {end_time} SP\n"
             label_path = (

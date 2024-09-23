@@ -366,7 +366,7 @@ class LitForcedAlignmentTask(pl.LightningModule):
         # )
         # total_confidence = np.exp(np.mean(np.log(frame_confidence + 1e-6)) / 3)
         ph_prob = np.exp(ph_prob_log)[:, 1]
-        ph_time_int_pred = np.where(ph_prob >= 0.8)[0]
+        ph_time_int_pred = np.where(ph_prob >= 0.6)[0]
 
         # postprocess
         frame_length = self.melspec_config["hop_length"] / (
@@ -522,7 +522,7 @@ class LitForcedAlignmentTask(pl.LightningModule):
             ph_frame_logits,
             ph_frame_gt,
             # (mask.unsqueeze(-1) * ph_mask.unsqueeze(1)),
-            mask,
+            None,
             valid,
         )
 
