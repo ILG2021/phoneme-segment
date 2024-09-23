@@ -48,15 +48,16 @@ class BaseG2P:
         dataset = []
         for wav_path in wav_paths:
             try:
-                if wav_path.with_suffix("." + self.in_format).exists():
-                    with open(
-                        wav_path.with_suffix("." + self.in_format),
-                        "r",
-                        encoding="utf-8",
-                    ) as f:
-                        lab_text = f.read().strip()
-                    ph_seq, word_seq, ph_idx_to_word_idx = self(lab_text)
-                    dataset.append((wav_path, ph_seq, word_seq, ph_idx_to_word_idx))
+                # if wav_path.with_suffix("." + self.in_format).exists():
+                #     with open(
+                #         wav_path.with_suffix("." + self.in_format),
+                #         "r",
+                #         encoding="utf-8",
+                #     ) as f:
+                #         lab_text = f.read().strip()
+                #     ph_seq, word_seq, ph_idx_to_word_idx = self(lab_text)
+                # 边界检测不需要输入参考
+                dataset.append((wav_path, [], [], []))
             except Exception as e:
                 e.args = (f" Error when processing {wav_path}: {e} ",)
                 raise e

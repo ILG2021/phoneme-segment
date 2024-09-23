@@ -83,13 +83,13 @@ def forward_pass(T, S, prob_log, not_edge_prob_log, edge_prob_log, curr_ph_max_p
 
 class LitForcedAlignmentTask(pl.LightningModule):
     def __init__(
-        self,
-        vocab_text,
-        model_config,
-        melspec_config,
-        optimizer_config,
-        loss_config,
-        data_augmentation_enabled,
+            self,
+            vocab_text,
+            model_config,
+            melspec_config,
+            optimizer_config,
+            loss_config,
+            data_augmentation_enabled,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -108,7 +108,8 @@ class LitForcedAlignmentTask(pl.LightningModule):
             channels_scaleup_factor=model_config["channels_scaleup_factor"],  # 1.5
         )
         self.head = nn.Linear(
-            model_config["hidden_dims"], self.vocab["<vocab_size>"] + 2
+            ## model_config["hidden_dims"], self.vocab["<vocab_size>"] + 2
+            model_config["hidden_dims"], 2 + 1  # 2分类 + edge
         )
         self.melspec_config = melspec_config  # Required for inference
         self.optimizer_config = optimizer_config
@@ -142,7 +143,7 @@ class LitForcedAlignmentTask(pl.LightningModule):
 
         # loss function
         self.ph_frame_GHM_loss_fn = GHMLoss(
-            self.vocab["<vocab_size>"],
+            2,
             loss_config["function"]["num_bins"],
             loss_config["function"]["alpha"],
             loss_config["function"]["label_smoothing"],
@@ -279,23 +280,23 @@ class LitForcedAlignmentTask(pl.LightningModule):
         )
 
     def _infer_once(
-        self,
-        melspec,
-        wav_length,
-        ph_seq,
-        word_seq=None,
-        ph_idx_to_word_idx=None,
-        return_ctc=False,
-        return_plot=False,
+            self,
+            melspec,
+            wav_length,
+            ph_seq=None,
+            word_seq=None,
+            ph_idx_to_word_idx=None,
+            return_ctc=False,
+            return_plot=False,
     ):
-        ph_seq_id = np.array([self.vocab[ph] for ph in ph_seq])
-        ph_mask = np.zeros(self.vocab["<vocab_size>"])
-        ph_mask[ph_seq_id] = 1
-        ph_mask[0] = 1
-        ph_mask = torch.from_numpy(ph_mask)
-        if word_seq is None:
-            word_seq = ph_seq
-            ph_idx_to_word_idx = np.arange(len(ph_seq))
+        ph_seq_id = [0]
+        # ph_mask = np.zeros(self.vocab["<vocab_size>"])
+        # ph_mask[ph_seq_id] = 1
+        # ph_mask[0] = 1
+        # ph_mask = torch.from_numpy(ph_mask)
+        # if word_seq is None:
+        #     word_seq = ph_seq
+        #     ph_idx_to_word_idx = np.arange(len(ph_seq))
 
         # forward
         with torch.no_grad():
@@ -308,10 +309,10 @@ class LitForcedAlignmentTask(pl.LightningModule):
             num_frames = int(
                 (
                     (
-                        wav_length
-                        * self.melspec_config["scale_factor"]
-                        * self.melspec_config["sample_rate"]
-                        + 0.5
+                            wav_length
+                            * self.melspec_config["scale_factor"]
+                            * self.melspec_config["sample_rate"]
+                            + 0.5
                     )
                 )
                 / self.melspec_config["hop_length"]
@@ -320,13 +321,13 @@ class LitForcedAlignmentTask(pl.LightningModule):
             ph_edge_logits = ph_edge_logits[:, :num_frames]
             ctc_logits = ctc_logits[:, :num_frames, :]
 
-        ph_mask = (
-            ph_mask.to(ph_frame_logits.device).unsqueeze(0).unsqueeze(0).logical_not()
-            * 1e9
-        )
+        # ph_mask = (
+        #         ph_mask.to(ph_frame_logits.device).unsqueeze(0).unsqueeze(0).logical_not()
+        #         * 1e9
+        # )
         ph_frame_pred = (
             torch.nn.functional.softmax(
-                ph_frame_logits.float() - ph_mask.float(), dim=-1
+                ph_frame_logits.float(), dim=-1
             )
             .squeeze(0)
             .cpu()
@@ -334,39 +335,42 @@ class LitForcedAlignmentTask(pl.LightningModule):
             .astype("float32")
         )
         ph_prob_log = (
-            torch.log_softmax(ph_frame_logits.float() - ph_mask.float(), dim=-1)
+            torch.log_softmax(ph_frame_logits.float(), dim=-1)
             .squeeze(0)
             .cpu()
             .numpy()
             .astype("float32")
         )
         ph_edge_pred = (
-            (torch.nn.functional.sigmoid(ph_edge_logits.float()) - 0.1) / 0.8
+                (torch.nn.functional.sigmoid(ph_edge_logits.float()) - 0.1) / 0.8
         ).clamp(0.0, 1.0)
+        # T
         ph_edge_pred = ph_edge_pred.squeeze(0).cpu().numpy().astype("float32")
-        ctc_logits = (
-            ctc_logits.float().squeeze(0).cpu().numpy().astype("float32")
-        )  # (ctc_logits.squeeze(0) - ph_mask)
+        # ctc_logits = (
+        #     ctc_logits.float().squeeze(0).cpu().numpy().astype("float32")
+        # )  # (ctc_logits.squeeze(0) - ph_mask)
 
-        T, vocab_size = ph_frame_pred.shape
+        T, C = ph_frame_pred.shape
 
         # decode
         edge_diff = np.concatenate((np.diff(ph_edge_pred, axis=0), [0]), axis=0)
         edge_prob = (ph_edge_pred + np.concatenate(([0], ph_edge_pred[:-1]))).clip(0, 1)
-        (
-            ph_idx_seq,
-            ph_time_int_pred,
-            frame_confidence,
-        ) = self._decode(
-            ph_seq_id,
-            ph_prob_log,
-            edge_prob,
-        )
-        total_confidence = np.exp(np.mean(np.log(frame_confidence + 1e-6)) / 3)
+        # (
+        #     ph_idx_seq,
+        #     ph_time_int_pred,
+        #     frame_confidence,
+        # ) = self._decode(
+        #     ph_seq_id,
+        #     ph_prob_log,
+        #     edge_prob,
+        # )
+        # total_confidence = np.exp(np.mean(np.log(frame_confidence + 1e-6)) / 3)
+        ph_prob = np.exp(ph_prob_log)[:, 1]
+        ph_time_int_pred = np.where(ph_prob >= 0.8)[0]
 
         # postprocess
         frame_length = self.melspec_config["hop_length"] / (
-            self.melspec_config["sample_rate"] * self.melspec_config["scale_factor"]
+                self.melspec_config["sample_rate"] * self.melspec_config["scale_factor"]
         )
         ph_time_fractional = (edge_diff[ph_time_int_pred] / 2).clip(-0.5, 0.5)
         ph_time_pred = frame_length * (
@@ -380,25 +384,25 @@ class LitForcedAlignmentTask(pl.LightningModule):
         ph_intervals = np.stack([ph_time_pred[:-1], ph_time_pred[1:]], axis=1)
 
         ph_seq_pred = []
-        ph_intervals_pred = []
+        ph_intervals_pred = ph_intervals
         word_seq_pred = []
         word_intervals_pred = []
 
         word_idx_last = -1
-        for i, ph_idx in enumerate(ph_idx_seq):
-            # ph_idx只能用于两种情况：ph_seq和ph_idx_to_word_idx
-            if ph_seq[ph_idx] == "SP":
-                continue
-            ph_seq_pred.append(ph_seq[ph_idx])
-            ph_intervals_pred.append(ph_intervals[i, :])
-
-            word_idx = ph_idx_to_word_idx[ph_idx]
-            if word_idx == word_idx_last:
-                word_intervals_pred[-1][1] = ph_intervals[i, 1]
-            else:
-                word_seq_pred.append(word_seq[word_idx])
-                word_intervals_pred.append([ph_intervals[i, 0], ph_intervals[i, 1]])
-                word_idx_last = word_idx
+        # for i, ph_idx in enumerate(ph_idx_seq):
+        #     # ph_idx只能用于两种情况：ph_seq和ph_idx_to_word_idx
+        #     if ph_seq[ph_idx] == "SP":
+        #         continue
+        #     ph_seq_pred.append(ph_seq[ph_idx])
+        #     ph_intervals_pred.append(ph_intervals[i, :])
+        #
+        #     word_idx = ph_idx_to_word_idx[ph_idx]
+        #     if word_idx == word_idx_last:
+        #         word_intervals_pred[-1][1] = ph_intervals[i, 1]
+        #     else:
+        #         word_seq_pred.append(word_seq[word_idx])
+        #         word_intervals_pred.append([ph_intervals[i, 0], ph_intervals[i, 1]])
+        #         word_idx_last = word_idx
         ph_seq_pred = np.array(ph_seq_pred)
         ph_intervals_pred = np.array(ph_intervals_pred).clip(min=0, max=None)
         word_seq_pred = np.array(word_seq_pred)
@@ -417,30 +421,30 @@ class LitForcedAlignmentTask(pl.LightningModule):
         ph_intervals_pred_int = (
             (ph_intervals_pred / frame_length).round().astype("int32")
         )
-        if return_plot:
-            ph_idx_frame = np.zeros(T).astype("int32")
-            last_ph_idx = 0
-            for ph_idx, ph_time in zip(ph_idx_seq, ph_time_int_pred):
-                ph_idx_frame[ph_time] += ph_idx - last_ph_idx
-                last_ph_idx = ph_idx
-            ph_idx_frame = np.cumsum(ph_idx_frame)
-            args = {
-                "melspec": melspec.cpu().numpy(),
-                "ph_seq": ph_seq_pred,
-                "ph_intervals": ph_intervals_pred_int,
-                "frame_confidence": frame_confidence,
-                "ph_frame_prob": ph_frame_pred[:, ph_seq_id],
-                "ph_frame_id_gt": ph_idx_frame,
-                "edge_prob": edge_prob,
-            }
-            fig = plot_for_valid(**args)
+        # if return_plot:
+        #     ph_idx_frame = np.zeros(T).astype("int32")
+        #     last_ph_idx = 0
+        #     for ph_idx, ph_time in zip(ph_idx_seq, ph_time_int_pred):
+        #         ph_idx_frame[ph_time] += ph_idx - last_ph_idx
+        #         last_ph_idx = ph_idx
+        #     ph_idx_frame = np.cumsum(ph_idx_frame)
+        #     args = {
+        #         "melspec": melspec.cpu().numpy(),
+        #         "ph_seq": ph_seq_pred,
+        #         "ph_intervals": ph_intervals_pred_int,
+        #         "frame_confidence": 1,
+        #         "ph_frame_prob": ph_frame_pred[:, ph_seq_id],
+        #         "ph_frame_id_gt": ph_idx_frame,
+        #         "edge_prob": edge_prob,
+        #     }
+        #     fig = plot_for_valid(**args)
 
         return (
             ph_seq_pred,
             ph_intervals_pred,
             word_seq_pred,
             word_intervals_pred,
-            total_confidence,
+            1,
             ctc,
             fig,
         )
@@ -491,14 +495,14 @@ class LitForcedAlignmentTask(pl.LightningModule):
             raise e
 
     def _get_full_label_loss(
-        self,
-        ph_frame_logits,
-        ph_edge_logits,
-        ph_frame_gt,
-        ph_edge_gt,
-        input_feature_lengths,
-        ph_mask,
-        valid,
+            self,
+            ph_frame_logits,
+            ph_edge_logits,
+            ph_frame_gt,
+            ph_edge_gt,
+            input_feature_lengths,
+            ph_mask,
+            valid,
     ):
         T = ph_frame_logits.shape[1]
 
@@ -517,7 +521,8 @@ class LitForcedAlignmentTask(pl.LightningModule):
         ph_frame_GHM_loss = self.ph_frame_GHM_loss_fn(
             ph_frame_logits,
             ph_frame_gt,
-            (mask.unsqueeze(-1) * ph_mask.unsqueeze(1)),
+            # (mask.unsqueeze(-1) * ph_mask.unsqueeze(1)),
+            mask,
             valid,
         )
 
@@ -541,13 +546,13 @@ class LitForcedAlignmentTask(pl.LightningModule):
         return ph_frame_GHM_loss, ph_edge_GHM_loss, ph_edge_EMD_loss, ph_edge_diff_loss
 
     def _get_weak_label_loss(
-        self,
-        ctc_logits,
-        ph_mask,
-        ph_seq_gt,
-        ph_seq_lengths_gt,
-        input_feature_lengths,
-        valid,
+            self,
+            ctc_logits,
+            ph_mask,
+            ph_seq_gt,
+            ph_seq_lengths_gt,
+            input_feature_lengths,
+            valid,
     ):
         ctc_logits = ctc_logits - ph_mask.unsqueeze(1).logical_not().float() * 1e9
         log_probs_pred = nn.functional.log_softmax(ctc_logits, dim=-1)
@@ -564,7 +569,7 @@ class LitForcedAlignmentTask(pl.LightningModule):
         return ctc_GHM_loss
 
     def _get_consistency_loss(
-        self, ph_frame_logits, ph_edge_logits, input_feature_lengths
+            self, ph_frame_logits, ph_edge_logits, input_feature_lengths
     ):
         output_tensors = torch.cat(
             [ph_frame_logits, ph_edge_logits.unsqueeze(-1)], dim=-1
@@ -586,7 +591,7 @@ class LitForcedAlignmentTask(pl.LightningModule):
         # consistency loss
         consistency_loss = self.MSE_loss_fn(
             output_tensors[: B // 2, :, :] * mask,
-            output_tensors[B // 2 :, :, :] * mask,
+            output_tensors[B // 2:, :, :] * mask,
         )
 
         return consistency_loss
@@ -598,7 +603,7 @@ class LitForcedAlignmentTask(pl.LightningModule):
         ph_edge_prob = torch.nn.functional.sigmoid(ph_frame_logits.float())
 
         pred1 = ph_edge_prob[: B // 2, :]
-        pred2 = ph_edge_prob[B // 2 :, :]
+        pred2 = ph_edge_prob[B // 2:, :]
         pseudo_label1 = (pred1 >= 0.5).float()
         pseudo_label2 = (pred2 >= 0.5).float()
         gradient_magnitude1 = torch.abs(pred1 - pseudo_label1)
@@ -615,9 +620,9 @@ class LitForcedAlignmentTask(pl.LightningModule):
             .unsqueeze(-1)
         )
         pseudo_label_mask = (  # (B//2, T)
-            mask
-            & (pseudo_label1 == pseudo_label2)
-            & (gradient_magnitude < self.pseudo_label_auto_theshold)
+                mask
+                & (pseudo_label1 == pseudo_label2)
+                & (gradient_magnitude < self.pseudo_label_auto_theshold)
         )
 
         if pseudo_label_mask.sum() / mask.sum() < self.pseudo_label_ratio:
@@ -638,18 +643,18 @@ class LitForcedAlignmentTask(pl.LightningModule):
         return pseudo_label_loss
 
     def _get_loss(
-        self,
-        ph_frame_logits,  # (B, T, vocab_size)
-        ph_edge_logits,  # (B, T)
-        ctc_logits,  # (B, T, vocab_size)
-        ph_frame_gt,  # (B, T)
-        ph_edge_gt,  # (B, T)
-        ph_seq_gt,  # (B S)
-        ph_seq_lengths_gt,  # (B)
-        ph_mask,  # (B vocab_size)
-        input_feature_lengths,  # (B)
-        label_type,  # (B)
-        valid=False,
+            self,
+            ph_frame_logits,  # (B, T, vocab_size)
+            ph_edge_logits,  # (B, T)
+            ctc_logits,  # (B, T, vocab_size)
+            ph_frame_gt,  # (B, T)
+            ph_edge_gt,  # (B, T)
+            ph_seq_gt,  # (B S)
+            ph_seq_lengths_gt,  # (B)
+            ph_mask,  # (B vocab_size)
+            input_feature_lengths,  # (B)
+            label_type,  # (B)
+            valid=False,
     ):
         full_label_idx = label_type >= 2
         weak_label_idx = label_type >= 1
@@ -676,18 +681,18 @@ class LitForcedAlignmentTask(pl.LightningModule):
             ph_edge_EMD_loss = ph_edge_diff_loss = ZERO
 
         # TODO:这种pack方式无法处理只有batch中的一部分需要计算Loss的情况，改掉
-        if (weak_label_idx).any():
-            ctc_GHM_loss = ZERO
-            ctc_GHM_loss = self._get_weak_label_loss(
-                ctc_logits[weak_label_idx, :, :],
-                ph_mask[weak_label_idx, :],
-                ph_seq_gt[weak_label_idx, :],
-                ph_seq_lengths_gt[weak_label_idx],
-                input_feature_lengths[weak_label_idx],
-                valid,
-            )
-        else:
-            ctc_GHM_loss = ZERO
+        # if (weak_label_idx).any():
+        #     ctc_GHM_loss = ZERO
+        #     ctc_GHM_loss = self._get_weak_label_loss(
+        #         ctc_logits[weak_label_idx, :, :],
+        #         ph_mask[weak_label_idx, :],
+        #         ph_seq_gt[weak_label_idx, :],
+        #         ph_seq_lengths_gt[weak_label_idx],
+        #         input_feature_lengths[weak_label_idx],
+        #         valid,
+        #     )
+        # else:
+        ctc_GHM_loss = ZERO
 
         if not valid and self.data_augmentation_enabled:
             consistency_loss = self._get_consistency_loss(
@@ -718,10 +723,12 @@ class LitForcedAlignmentTask(pl.LightningModule):
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         h = self.backbone(*args, **kwargs)
         logits = self.head(h)
-        ph_frame_logits = logits[:, :, 2:]
+        ## ph_frame_logits = logits[:, :, 2:]
+        ph_frame_logits = logits[:, :, 1:]
         ph_edge_logits = logits[:, :, 0]
-        ctc_logits = torch.cat([logits[:, :, [1]], logits[:, :, 3:]], dim=-1)
-        return ph_frame_logits, ph_edge_logits, ctc_logits
+        ## ctc_logits = torch.cat([logits[:, :, [1]], logits[:, :, 3:]], dim=-1)
+        ## return ph_frame_logits, ph_edge_logits, ctc_logits
+        return ph_frame_logits, ph_edge_logits, torch.zeros_like(ph_frame_logits)
 
     def training_step(self, batch, batch_idx):
         try:
@@ -759,7 +766,7 @@ class LitForcedAlignmentTask(pl.LightningModule):
             schedule_weight = self._losses_schedulers_call()
             self._losses_schedulers_step()
             total_loss = (
-                torch.stack(losses) * self.losses_weights * schedule_weight
+                    torch.stack(losses) * self.losses_weights * schedule_weight
             ).sum()
             losses.append(total_loss)
 
@@ -794,27 +801,27 @@ class LitForcedAlignmentTask(pl.LightningModule):
             label_type,  # (B)
         ) = batch
 
-        ph_seq_g2p = ["SP"]
-        for ph in ph_seq.squeeze(0).cpu().numpy():
-            if ph == 0:
-                continue
-            ph_seq_g2p.append(self.vocab[ph])
-            ph_seq_g2p.append("SP")
-        _, _, _, _, _, ctc, fig = self._infer_once(
-            input_feature,
-            None,
-            ph_seq_g2p,
-            None,
-            None,
-            True,
-            True,
-        )
-        self.logger.experiment.add_text(
-            f"valid/ctc_predict_{batch_idx}", " ".join(ctc), self.global_step
-        )
-        self.logger.experiment.add_figure(
-            f"valid/plot_{batch_idx}", fig, self.global_step
-        )
+        # ph_seq_g2p = ["SP"]
+        # for ph in ph_seq.squeeze(0).cpu().numpy():
+        #     if ph == 0:
+        #         continue
+        #     ph_seq_g2p.append(self.vocab[ph])
+        #     ph_seq_g2p.append("SP")
+        # _, _, _, _, _, ctc, fig = self._infer_once(
+        #     input_feature,
+        #     None,
+        #     ph_seq_g2p,
+        #     None,
+        #     None,
+        #     False,
+        #     False,
+        # )
+        # self.logger.experiment.add_text(
+        #     f"valid/ctc_predict_{batch_idx}", " ".join(ctc), self.global_step
+        # )
+        # self.logger.experiment.add_figure(
+        #     f"valid/plot_{batch_idx}", fig, self.global_step
+        # )
 
         (
             ph_frame_logits,  # (B, T, vocab_size)

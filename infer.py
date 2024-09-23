@@ -39,15 +39,15 @@ from train import LitForcedAlignmentTask
 @click.option(
     "--in_format",
     "-if",
-    default="lab",
+    default="txt",
     required=False,
     type=str,
-    help="File extension of input transcriptions. Default: lab",
+    help="File extension of input transcriptions. Default: txt",
 )
 @click.option(
     "--out_formats",
     "-of",
-    default="textgrid,htk,trans",
+    default="htk",
     required=False,
     type=str,
     help="Types of output file, separated by comma. Supported types:"
@@ -101,9 +101,9 @@ def main(
     trainer = pl.Trainer(logger=False)
     predictions = trainer.predict(model, dataloaders=dataset, return_predictions=True)
 
-    predictions = get_AP.process(predictions)
-    predictions, log = post_processing(predictions)
-    exporter = Exporter(predictions, log)
+    # predictions = get_AP.process(predictions)
+    # predictions, log = post_processing(predictions)
+    exporter = Exporter(predictions, None)
 
     if save_confidence:
         out_formats.append('confidence')

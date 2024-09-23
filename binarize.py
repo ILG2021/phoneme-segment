@@ -15,14 +15,14 @@ from modules.utils.load_wav import load_wav
 
 class ForcedAlignmentBinarizer:
     def __init__(
-        self,
-        data_folder,
-        valid_set_size,
-        valid_set_preferred_folders,
-        data_augmentation,
-        ignored_phonemes,
-        melspec_config,
-        max_length,
+            self,
+            data_folder,
+            valid_set_size,
+            valid_set_preferred_folders,
+            data_augmentation,
+            ignored_phonemes,
+            melspec_config,
+            max_length,
     ):
         self.data_folder = pathlib.Path(data_folder)
         self.valid_set_size = valid_set_size
@@ -110,12 +110,12 @@ class ForcedAlignmentBinarizer:
         )
 
     def binarize(
-        self,
-        prefix: str,
-        meta_data: pd.DataFrame,
-        vocab: dict,
-        binary_data_folder: str,
-        enable_data_augmentation: bool,
+            self,
+            prefix: str,
+            meta_data: pd.DataFrame,
+            vocab: dict,
+            binary_data_folder: str,
+            enable_data_augmentation: bool,
     ):
         print(f"Binarizing {prefix} set...")
 
@@ -131,7 +131,7 @@ class ForcedAlignmentBinarizer:
         total_time = 0.0
         for _, item in tqdm(meta_data.iterrows(), total=meta_data.shape[0]):
             try:
-                # input_feature: [data_augmentation.size+1,input_dim,T]
+                # input_feature: [data_augmentation.size + 1, input_dim, T]
                 waveform = load_wav(item.wav_path, self.device, self.sample_rate)
                 input_feature = self.get_melspec(waveform)
 
@@ -165,8 +165,8 @@ class ForcedAlignmentBinarizer:
                     input_feature = input_feature.unsqueeze(0)
 
                 input_feature = (
-                    input_feature - input_feature.mean(dim=[1, 2], keepdim=True)
-                ) / input_feature.std(dim=[1, 2], keepdim=True)
+                                        input_feature - input_feature.mean(dim=[1, 2], keepdim=True)
+                                ) / input_feature.std(dim=[1, 2], keepdim=True)
 
                 h5py_item_data["input_feature"] = (
                     input_feature.cpu().numpy().astype("float32")
@@ -214,11 +214,13 @@ class ForcedAlignmentBinarizer:
                     ph_seq = np.array(item.ph_seq).astype("int32")
                     not_sp_idx = ph_seq != 0
                     ph_seq = ph_seq[not_sp_idx]
+                    if len(ph_seq) == 0:
+                        continue
 
                     # ph_edge: [scale_factor * T]
                     ph_dur = np.array(item.ph_dur).astype("float32")
                     ph_time = np.array(np.concatenate(([0], ph_dur))).cumsum() / (
-                        self.frame_length / self.scale_factor
+                            self.frame_length / self.scale_factor
                     )
                     ph_interval = np.stack((ph_time[:-1], ph_time[1:]))
 
@@ -245,13 +247,16 @@ class ForcedAlignmentBinarizer:
                     ph_frame = np.zeros(T, dtype="int32")
                     if len(ph_seq) > 0:
                         for ph_id, st, ed in zip(
-                            ph_seq, ph_interval[0], ph_interval[1]
+                                ph_seq, ph_interval[0], ph_interval[1]
                         ):
                             if st < 0:
                                 st = 0
                             if ed > T:
                                 ed = T
-                            ph_frame[int(np.round(st)) : int(np.round(ed))] = ph_id
+                            ## ph_frame[int(np.round(st)): int(np.round(ed))] = ph_id
+                            # 切线位置是1，其他是0
+                            ph_frame[int(np.round(st))] = 1
+                            ph_frame[int(np.round(ed))] = 1
 
                     # ph_mask: [vocab_size]
                     ph_mask = np.zeros(vocab["<vocab_size>"], dtype="int32")

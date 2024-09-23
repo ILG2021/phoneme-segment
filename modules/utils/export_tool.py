@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import textgrid
@@ -52,30 +54,30 @@ class Exporter:
                 word_intervals,
         ) in self.predictions:
             label = ""
-            for ph, (start, end) in zip(ph_seq, ph_intervals):
+            for start, end in ph_intervals:
                 start_time = int(float(start) * 10000000)
                 end_time = int(float(end) * 10000000)
-                label += f"{start_time} {end_time} {ph}\n"
+                label += f"{start_time} {end_time} SP\n"
             label_path = (
-                    wav_path.parent / "htk" / "phones" / wav_path.with_suffix(".lab").name
+                wav_path.with_suffix(".lab").name
             )
-            label_path.parent.mkdir(parents=True, exist_ok=True)
+            Path(label_path).parent.mkdir(parents=True, exist_ok=True)
             with open(label_path, "w", encoding="utf-8") as f:
                 f.write(label)
                 f.close()
 
-            label = ""
-            for word, (start, end) in zip(word_seq, word_intervals):
-                start_time = int(float(start) * 10000000)
-                end_time = int(float(end) * 10000000)
-                label += f"{start_time} {end_time} {word}\n"
-            label_path = (
-                    wav_path.parent / "htk" / "words" / wav_path.with_suffix(".lab").name
-            )
-            label_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(label_path, "w", encoding="utf-8") as f:
-                f.write(label)
-                f.close()
+            # label = ""
+            # for word, (start, end) in zip(word_seq, word_intervals):
+            #     start_time = int(float(start) * 10000000)
+            #     end_time = int(float(end) * 10000000)
+            #     label += f"{start_time} {end_time} {word}\n"
+            # label_path = (
+            #         wav_path.parent / "htk" / "words" / wav_path.with_suffix(".lab").name
+            # )
+            # label_path.parent.mkdir(parents=True, exist_ok=True)
+            # with open(label_path, "w", encoding="utf-8") as f:
+            #     f.write(label)
+            #     f.close()
 
     def save_transcriptions(self):
         print("Saving transcriptions.csv...")
