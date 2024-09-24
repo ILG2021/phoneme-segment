@@ -1,0 +1,22 @@
+{
+    "vowels": [
+        "ae",
+        "ah",
+        "ee",
+        "eh",
+        "en",
+        "ih",
+        "in",
+        "oe",
+        "oh",
+        "on",
+        "oo",
+        "ou",
+        "uh",
+        "uy"
+    ],
+    "liquids": [
+        "l",
+        "r"
+    ]
+}
