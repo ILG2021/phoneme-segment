@@ -130,7 +130,7 @@ class ForcedAlignmentBinarizer:
         idx = 0
         total_time = 0.0
         for _, item in tqdm(meta_data.iterrows(), total=meta_data.shape[0]):
-            try:
+            # try:
                 # input_feature: [data_augmentation.size + 1, input_dim, T]
                 waveform = load_wav(item.wav_path, self.device, self.sample_rate)
                 input_feature = self.get_melspec(waveform)
@@ -251,8 +251,8 @@ class ForcedAlignmentBinarizer:
                         ):
                             if st < 0:
                                 st = 0
-                            if ed > T:
-                                ed = T
+                            if ed > T - 1:
+                                ed = T - 1
                             ## ph_frame[int(np.round(st)): int(np.round(ed))] = ph_id
                             # 切线位置是1，其他是0
                             ph_frame[int(np.round(st))] = 1
@@ -292,10 +292,10 @@ class ForcedAlignmentBinarizer:
                 #     h5py_item_data["input_feature"].shape[-1] * 4
                 #     == h5py_item_data["ph_frame"].shape[0]
                 # )
-            except Exception as e:
-                e.args += (item.wav_path,)
-                print(e)
-                continue
+            # except Exception as e:
+            #     e.args += (item.wav_path,)
+            #     print(e)
+            #     continue
         for k, v in items_meta_data.items():
             h5py_meta_data[k] = np.array(v)
         h5py_file.close()

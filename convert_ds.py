@@ -98,6 +98,9 @@ def get_special_phonemes(lang):
         liquids = [
             'ax0', 'w', 'y'
         ]
+    elif lang == 'it':
+        vowels = ["SP", "AP", "EP", "a", "EE", "e", "i", "o", "OO", "u"]
+        liquids = []
     return vowels, liquids
 
 
