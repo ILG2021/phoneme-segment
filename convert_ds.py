@@ -90,6 +90,14 @@ def get_special_phonemes(lang):
         liquids = ["ay", "aw", "y", "w"]
         all_phonemes = ['a', 'aw', 'ay', 'b', 'ch', 'cl', 'd', 'e', 'f', 'g', 'h', 'i', 'jh', 'k', 'l', 'm', 'n', 'ng',
                         'ny', 'o', 'p', 'r', 's', 'sh', 't', 'u', 'v', 'w', 'y']
+    elif lang == 'vi':
+        vowels = [
+            "ee", "a0", "aa", "ax", "e", "E", "i", "o", "O", "u", "U"
+        ]
+        # 滑音
+        liquids = [
+            'ax0', 'w', 'y'
+        ]
     return vowels, liquids
 
 

@@ -62,7 +62,7 @@ class Exporter:
                 end_time = int(float(end) * 10000000)
                 label += f"{start_time} {end_time} SP\n"
             label_path = (
-                wav_path.with_suffix(".lab").name
+                wav_path.with_suffix(".lab")
             )
             Path(label_path).parent.mkdir(parents=True, exist_ok=True)
             with open(label_path, "w", encoding="utf-8") as f:
