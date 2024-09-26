@@ -1,4 +1,4 @@
-# phoneme segement
+# Phoneme Segment
 
 # 介绍
 
@@ -10,8 +10,8 @@
 
 1. 使用`git clone`​​下载本仓库的代码
 2. 安装conda或使用venv
-3. 去[pytorch官网](https://pytorch.org/get-started/locally/)安装torch
-4.（可选，用于提高wav读取速度）去[pytorch官网](https://pytorch.org/get-started/locally/)安装torchaudio
+3. 去[pytorch官网](https://pytorch.org/get-started/locally/)安装torch 
+4. （可选，用于提高wav读取速度）去[pytorch官网](https://pytorch.org/get-started/locally/)安装torchaudio
 5. 安装其他python库
     ```bash
     pip install -r requirements.txt
